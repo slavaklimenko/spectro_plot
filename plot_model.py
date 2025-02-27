@@ -1,13 +1,24 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-from spectro.COG.COG import Voigt
-from dust_extinction_model.spectrum_model import spectrum
+from COG import Voigt
+from spectrum_model import spectrum
 from spectro.a_unc import a
 from collections import OrderedDict
 from spectro.profiles import convolve_res2
 from scipy.interpolate import interp1d
+import pickle
+from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FormatStrFormatter
+import matplotlib.patches as mpatches
 
+if 1:
+    import matplotlib
+    matplotlib.rcParams['text.usetex'] = True
+    #matplotlib.rcParams['text.latex.unicode'] = True
+    #matplotlib.rc('text', usetex=True)
+    matplotlib.rcParams['axes.titlesize'] = 10
+    from matplotlib import rcParams
+    rcParams['font.family'] = 'serif'
 
 class par:
     def __init__(self, parent, name, val, min, max, step, addinfo='', vary=True, fit=True, show=True, left=None, right=None):
@@ -190,8 +201,6 @@ class par:
             else:
                 return '{0:.{1}f}'.format(self.val, dec)
 
-
-
 class fitSpecies:
     def __init__(self, parent, name=None):
         self.parent = parent
@@ -204,7 +213,6 @@ class fitSpecies:
         attrs = ['b', 'N']
         for attr in attrs:
             getattr(self, attr).duplicate(getattr(other, attr))
-
 
 class fitSystem:
     def __init__(self, parent, z=0.0):
@@ -331,8 +339,6 @@ class fitSystem:
 
     def __str__(self):
         return '{:.6f} '.format(self.z.val) + str(self.sp)
-
-
 
 class fitPars:
     def __init__(self, parent):
@@ -763,8 +769,6 @@ class fitPars:
     def __str__(self):
         return '\n'.join([str(s) for s in self.sys])
 
-
-
 class line():
     def __init__(self, l0=1215.6682, f=2.776E-01, g=6.265E+08,name='HI'):
         self.l0 = l0
@@ -831,14 +835,15 @@ def read_model(filename='', zoom=True, skip_header=0):
                         # self.s[ind].mask.set(x=np.zeros_like(self.s[ind].spec.x(), dtype=bool))
                         n = int(d[i].split()[1])
                         print('n fitting points:', n)
-                        spec[spec_ind].fitting_points = spec[spec_ind].x < 0
+                        spec[spec_ind].fitting_points = []
                         if n > 0:
                             i += 1
                             for line in d[i:i + n]:
-                                w = [float(line.split()[0])]
-                                w_pos = np.where(np.abs(spec[spec_ind].x-w)<1e-4)[0]
-                                if w_pos is not None:
-                                    spec[spec_ind].fitting_points[w_pos] = True
+                                w = float(line.split()[0])
+                                spec[spec_ind].fitting_points.append(w)
+                                #w_pos = np.where(np.abs(spec[spec_ind].x-w)<1e-4)[0]
+                                #if w_pos is not None:
+                                #    spec[spec_ind].fitting_points[w_pos] = True
 
                     if 'resolution' in d[i]:
                         spec[spec_ind].resolution = int(float(d[i].split()[1]))
@@ -862,130 +867,132 @@ def read_model(filename='', zoom=True, skip_header=0):
         s.fit = fit
     return spec
 
+if 0:
+    species={}
+    #add 12CI
+    if 1:
+        species['CI'] = element(name='CIj0')
+        species['CI'].lines['CI1656'] = line(l0=1656.9284,f=1.49E-01,g=3.60E+08,name='CI')
+        species['CI'].lines['CI1560'] = line(l0=1560.3092,f= 7.74E-02,g=1.27E+08,name='CI')
+        species['CI'].lines['CI1328'] = line(l0=1328.8333,f=  7.58E-02 ,g=2.88E+08,name='CI')
+        species['CI'].lines['CI1280'] = line(l0=1280.1352 ,f=  2.63E-02 ,g= 1.06E+08 ,name='CI')
+        species['CI'].lines['CI1277'] = line(l0=1277.2452,f=   8.53E-02 ,g=2.32E+08,name='CI')
+        species['CI'].lines['CI1276'] = line(l0=1276.4822,f=   5.89E-03 ,g=8.03E+06,name='CI')
 
-species={}
-#add 12CI
-if 1:
-    species['CI'] = element(name='CIj0')
-    species['CI'].lines['CI1656'] = line(l0=1656.9284,f=1.49E-01,g=3.60E+08,name='CI')
-    species['CI'].lines['CI1560'] = line(l0=1560.3092,f= 7.74E-02,g=1.27E+08,name='CI')
-    species['CI'].lines['CI1328'] = line(l0=1328.8333,f=  7.58E-02 ,g=2.88E+08,name='CI')
-    species['CI'].lines['CI1280'] = line(l0=1280.1352 ,f=  2.63E-02 ,g= 1.06E+08 ,name='CI')
-    species['CI'].lines['CI1277'] = line(l0=1277.2452,f=   8.53E-02 ,g=2.32E+08,name='CI')
-    species['CI'].lines['CI1276'] = line(l0=1276.4822,f=   5.89E-03 ,g=8.03E+06,name='CI')
+        species['CI'].lines['CI1270'] = line(l0=1270.1432, f=3.86E-04, g=1.0E+08, name='CI')
+        species['CI'].lines['CI1260'] = line(l0=1260.7351, f=5.07E-02, g=2.40E+08, name='CI')
+        ################################################
 
-    species['CI'].lines['CI1270'] = line(l0=1270.1432, f=3.86E-04, g=1.0E+08, name='CI')
-    species['CI'].lines['CI1260'] = line(l0=1260.7351, f=5.07E-02, g=2.40E+08, name='CI')
-    ################################################
+        species['CIj1'] = element(name='CIj1')
+        species['CIj1'].lines['CI1656.26'] = line(l0=1656.2672,f=6.21E-02,g=3.61E+08,name='CI')
+        species['CIj1'].lines['CI1657.37'] = line(l0=1657.3792 ,f= 3.71E-02,g=3.60E+08,name='CI')
+        species['CIj1'].lines['CI1657.90'] = line(l0=1657.9071,f=4.94E-02,g=3.60E+08,name='CI')
+        species['CIj1'].lines['CI1560.6820'] = line(l0=1560.6820, f=5.81E-02,g=1.27E+08,name='CI')
+        species['CIj1'].lines['CI1560.7089'] = line(l0=1560.7089 , f=1.93E-02,g=1.27E+08,name='CI')
+        species['CIj1'].lines['CI1329.1233'] = line(l0=1329.1233,f=1.91E-02,g=2.88E+08 ,name='CI')
+        species['CIj1'].lines['CI1329.1004'] = line(l0=1329.1004,f=3.13E-02,g=2.87E+08 ,name='CI')
+        species['CIj1'].lines['CI1329.0849'] = line(l0=1329.0849,f=2.54E-02,g=2.89E+08,name='CI')
+        species['CIj1'].lines['CI1287.6076'] = line(l0=1287.6076,f=6.03E-05,g=1.0E+08,name='CI')
+        species['CIj1'].lines['CI1287.6076'] = line(l0=1287.6076,f=7.04E-03,g=1.05E+08,name='CI')
+        species['CIj1'].lines['CI1280.4043'] = line(l0=1280.4043,f=4.40E-03,g=1.06E+08,name='CI')
+        species['CIj1'].lines['CI1279.8907'] = line(l0=1279.8907 ,f=1.43E-02,g=1.17E+08,name='CI')
+        species['CIj1'].lines['CI1279.0562'] = line(l0=1279.0562 ,f=7.08E-04,g=1.17E+08,name='CI')
+        species['CIj1'].lines['CI1277.5131'] = line(l0=1277.5131 ,f=2.10E-02,g=2.32E+08,name='CI')
+        species['CIj1'].lines['CI1277.2827'] = line(l0=1277.2827 ,f=6.66E-02,g=2.46E+08,name='CI')
+        species['CIj1'].lines['CI1276.7498'] = line(l0=1276.7498 ,f=5.89E-03,g=1.0E+08,name='CI')
 
-    species['CIj1'] = element(name='CIj1')
-    species['CIj1'].lines['CI1656.26'] = line(l0=1656.2672,f=6.21E-02,g=3.61E+08,name='CI')
-    species['CIj1'].lines['CI1657.37'] = line(l0=1657.3792 ,f= 3.71E-02,g=3.60E+08,name='CI')
-    species['CIj1'].lines['CI1657.90'] = line(l0=1657.9071,f=4.94E-02,g=3.60E+08,name='CI')
-    species['CIj1'].lines['CI1560.6820'] = line(l0=1560.6820, f=5.81E-02,g=1.27E+08,name='CI')
-    species['CIj1'].lines['CI1560.7089'] = line(l0=1560.7089 , f=1.93E-02,g=1.27E+08,name='CI')
-    species['CIj1'].lines['CI1329.1233'] = line(l0=1329.1233,f=1.91E-02,g=2.88E+08 ,name='CI')
-    species['CIj1'].lines['CI1329.1004'] = line(l0=1329.1004,f=3.13E-02,g=2.87E+08 ,name='CI')
-    species['CIj1'].lines['CI1329.0849'] = line(l0=1329.0849,f=2.54E-02,g=2.89E+08,name='CI')
-    species['CIj1'].lines['CI1287.6076'] = line(l0=1287.6076,f=6.03E-05,g=1.0E+08,name='CI')
-    species['CIj1'].lines['CI1287.6076'] = line(l0=1287.6076,f=7.04E-03,g=1.05E+08,name='CI')
-    species['CIj1'].lines['CI1280.4043'] = line(l0=1280.4043,f=4.40E-03,g=1.06E+08,name='CI')
-    species['CIj1'].lines['CI1279.8907'] = line(l0=1279.8907 ,f=1.43E-02,g=1.17E+08,name='CI')
-    species['CIj1'].lines['CI1279.0562'] = line(l0=1279.0562 ,f=7.08E-04,g=1.17E+08,name='CI')
-    species['CIj1'].lines['CI1277.5131'] = line(l0=1277.5131 ,f=2.10E-02,g=2.32E+08,name='CI')
-    species['CIj1'].lines['CI1277.2827'] = line(l0=1277.2827 ,f=6.66E-02,g=2.46E+08,name='CI')
-    species['CIj1'].lines['CI1276.7498'] = line(l0=1276.7498 ,f=5.89E-03,g=1.0E+08,name='CI')
+        species['CIj1'].lines['CI1270.408'] = line(l0=1270.408, f=4.51E-05 , g=1.0E+08, name='CI')
+        species['CIj1'].lines['CI1276.7498'] = line(l0=1276.7498, f=5.89E-03, g=1.0E+08, name='CI')
+        species['CIj1'].lines['CI1260.9262'] = line(l0=1260.9262 ,f=1.75E-02,g=2.41E+08,name='CI')
+        species['CIj1'].lines['CI1260.9961'] = line(l0=1260.9961 ,f=1.34E-02,g=2.40E+08,name='CI')
+        species['CIj1'].lines['CI1261.1224'] = line(l0=1261.1224, f=2.02E-02, g=2.36E+08, name='CI')
+        ##############################################
 
-    species['CIj1'].lines['CI1270.408'] = line(l0=1270.408, f=4.51E-05 , g=1.0E+08, name='CI')
-    species['CIj1'].lines['CI1276.7498'] = line(l0=1276.7498, f=5.89E-03, g=1.0E+08, name='CI')
-    species['CIj1'].lines['CI1260.9262'] = line(l0=1260.9262 ,f=1.75E-02,g=2.41E+08,name='CI')
-    species['CIj1'].lines['CI1260.9961'] = line(l0=1260.9961 ,f=1.34E-02,g=2.40E+08,name='CI')
-    species['CIj1'].lines['CI1261.1224'] = line(l0=1261.1224, f=2.02E-02, g=2.36E+08, name='CI')
-    ##############################################
+        species['CIj2'] = element(name='CIj2')
+        species['CIj2'].lines['CI1657.0081'] = line(l0=1657.00811,f=1.11E-01,g=3.61E+08,name='CI')
+        species['CIj2'].lines['CI1657.9071'] = line(l0=1657.9071,f=3.71E-02,g=3.60E+08,name='CI')
+        species['CIj2'].lines['CI1561.3399'] = line(l0=1561.3399,f=1.16E-02,g=1.27E+08,name='CI')
+        species['CIj2'].lines['CI1561.3668'] = line(l0=1561.3668,f=7.72E-04,g=1.27E+08,name='CI')
+        species['CIj2'].lines['CI1561.4378'] = line(l0=1561.4378,f=6.49E-02,g=1.27E+08,name='CI')
+        species['CIj2'].lines['CI1329.6004'] = line(l0=1329.6004,f=1.89E-02,g=2.88E+08,name='CI')
+        species['CIj2'].lines['CI1329.5775'] = line(l0=1329.5775,f=5.69E-02,g=2.87E+08,name='CI')
+        species['CIj2'].lines['CI1288.0553'] = line(l0=1288.0553,f=2.01E-05,g=2.87E+08,name='CI')
+        species['CIj2'].lines['CI1280.8471'] = line(l0=1280.8471,f=5.22E-03,g=1.06E+08,name='CI')
+        species['CIj2'].lines['CI1280.3331'] = line(l0=1280.3331,f=1.52E-02,g=1.17E+08,name='CI')
+        species['CIj2'].lines['CI1279.4980'] = line(l0=1279.4980,f=4.56E-04,g=1.0E+08,name='CI')
+        species['CIj2'].lines['CI1279.2290'] = line(l0=1279.2290,f=2.14E-03,g=1.0E+08,name='CI')
+        species['CIj2'].lines['CI1277.9539'] = line(l0=1277.9539,f=8.17E-04,g=2.32E+08,name='CI')
+        species['CIj2'].lines['CI1277.7233'] = line(l0=1277.7233,f=1.53E-02,g=2.46E+08,name='CI')
+        species['CIj2'].lines['CI1277.5501'] = line(l0=1277.5501,f=7.63E-02,g=2.44E+08,name='CI')
+        species['CIj2'].lines['CI1277.1900'] = line(l0=1277.1900,f=3.22E-04 ,g=1.0E+08,name='CI')
+        species['CIj2'].lines['CI1261.5519'] = line(l0=1261.5519, f=3.91E-02, g=2.36E+08, name='CI')
+        species['CIj2'].lines['CI1261.4255'] = line(l0=1261.4255, f=1.31E-02, g=2.40E+08, name='CI')
 
-    species['CIj2'] = element(name='CIj2')
-    species['CIj2'].lines['CI1657.0081'] = line(l0=1657.00811,f=1.11E-01,g=3.61E+08,name='CI')
-    species['CIj2'].lines['CI1657.9071'] = line(l0=1657.9071,f=3.71E-02,g=3.60E+08,name='CI')
-    species['CIj2'].lines['CI1561.3399'] = line(l0=1561.3399,f=1.16E-02,g=1.27E+08,name='CI')
-    species['CIj2'].lines['CI1561.3668'] = line(l0=1561.3668,f=7.72E-04,g=1.27E+08,name='CI')
-    species['CIj2'].lines['CI1561.4378'] = line(l0=1561.4378,f=6.49E-02,g=1.27E+08,name='CI')
-    species['CIj2'].lines['CI1329.6004'] = line(l0=1329.6004,f=1.89E-02,g=2.88E+08,name='CI')
-    species['CIj2'].lines['CI1329.5775'] = line(l0=1329.5775,f=5.69E-02,g=2.87E+08,name='CI')
-    species['CIj2'].lines['CI1288.0553'] = line(l0=1288.0553,f=2.01E-05,g=2.87E+08,name='CI')
-    species['CIj2'].lines['CI1280.8471'] = line(l0=1280.8471,f=5.22E-03,g=1.06E+08,name='CI')
-    species['CIj2'].lines['CI1280.3331'] = line(l0=1280.3331,f=1.52E-02,g=1.17E+08,name='CI')
-    species['CIj2'].lines['CI1279.4980'] = line(l0=1279.4980,f=4.56E-04,g=1.0E+08,name='CI')
-    species['CIj2'].lines['CI1279.2290'] = line(l0=1279.2290,f=2.14E-03,g=1.0E+08,name='CI')
-    species['CIj2'].lines['CI1277.9539'] = line(l0=1277.9539,f=8.17E-04,g=2.32E+08,name='CI')
-    species['CIj2'].lines['CI1277.7233'] = line(l0=1277.7233,f=1.53E-02,g=2.46E+08,name='CI')
-    species['CIj2'].lines['CI1277.5501'] = line(l0=1277.5501,f=7.63E-02,g=2.44E+08,name='CI')
-    species['CIj2'].lines['CI1277.1900'] = line(l0=1277.1900,f=3.22E-04 ,g=1.0E+08,name='CI')
-    species['CIj2'].lines['CI1261.5519'] = line(l0=1261.5519, f=3.91E-02, g=2.36E+08, name='CI')
-    species['CIj2'].lines['CI1261.4255'] = line(l0=1261.4255, f=1.31E-02, g=2.40E+08, name='CI')
+    #add 13CI
+    if 1:
+        species['13CI'] = element(name='13CIj0')
+        species['13CI'].lines['13CI1656.932'] = line(l0=1656.932,f=1.49E-01,g=3.60E+08,name='CI')
+        species['13CI'].lines['13CI1560.292'] = line(l0=1560.292,f= 7.74E-02,g=1.27E+08,name='CI')
+        species['13CI'].lines['13CI1328.826'] = line(l0=1328.826, f=7.58E-02, g=2.88E+08, name='CI')
+        #species['13CI'].lines['13CI1280'] = line(l0=1280.1352, f=2.63E-02, g=1.06E+08, name='CI')
+        species['13CI'].lines['13CI1277.2453'] = line(l0=1277.2453, f=8.53E-02, g=2.32E+08, name='CI')
+        #species['13CI'].lines['13CI1276'] = line(l0=1276.4822, f=5.89E-03, g=8.03E+06, name='CI')
+        species['13CI'].lines['13CI1260.7340'] = line(l0=1260.7340, f=5.07E-02, g=2.40E+08, name='CI')
 
+        species['13CIj1'] = element(name='13CIj1')
+        species['13CIj1'].lines['13CI1656.272'] = line(l0=1656.272,  f=6.21E-02, g=3.61E+08, name='CI')
+        species['13CIj1'].lines['13CI1657.383'] = line(l0= 1657.383, f=3.71E-02, g=3.60E+08, name='CI')
+        species['13CIj1'].lines['13CI1657.916'] = line(l0=1657.916 , f=4.94E-02, g=3.60E+08, name='CI')
+        species['13CIj1'].lines['13CI1560.6644'] = line(l0=1560.6644, f=5.81E-02,g=1.27E+08,name='CI')
+        species['13CIj1'].lines['13CI1560.6920'] = line(l0=1560.6920 , f=1.93E-02,g=1.27E+08,name='CI')
+        species['13CIj1'].lines['13CI1329.116'] = line(l0=1329.116,f=1.91E-02,g=2.88E+08 ,name='CI')
+        species['13CIj1'].lines['13CI1329.093'] = line(l0=1329.093,f=3.13E-02,g=2.87E+08 ,name='CI')
+        species['13CIj1'].lines['13CI1329.079'] = line(l0=1329.079,f=2.54E-02,g=2.89E+08,name='CI')
+        #species['CIj1'].lines['CI1287.6076'] = line(l0=1287.6076,f=6.03E-05,g=1.0E+08,name='CI')
+        #species['CIj1'].lines['CI1287.6076'] = line(l0=1287.6076,f=7.04E-03,g=1.05E+08,name='CI')
+        #species['CIj1'].lines['CI1280.4043'] = line(l0=1280.4043,f=4.40E-03,g=1.06E+08,name='CI')
+        #species['CIj1'].lines['CI1279.8907'] = line(l0=1279.8907 ,f=1.43E-02,g=1.17E+08,name='CI')
+        #species['CIj1'].lines['CI1279.0562'] = line(l0=1279.0562 ,f=7.08E-04,g=1.17E+08,name='CI')
+        species['13CIj1'].lines['13CI1277.5134'] = line(l0=1277.5134 ,f=2.10E-02,g=2.32E+08,name='CI')
+        species['13CIj1'].lines['13CI1277.2828'] = line(l0=1277.2828 ,f=6.66E-02,g=2.46E+08,name='CI')
+        #species['CIj1'].lines['CI1276.7498'] = line(l0=1276.7498 ,f=5.89E-03,g=1.0E+08,name='CI')
+        species['13CIj1'].lines['13CI1260.9254'] = line(l0=1260.9254 ,f=1.75E-02,g=2.41E+08,name='CI')
+        species['13CIj1'].lines['13CI1260.9950'] = line(l0=1260.9950 ,f=1.34E-02,g=2.40E+08,name='CI')
+        species['13CIj1'].lines['13CI1261.1213'] = line(l0=1261.1213, f=2.02E-02, g=2.36E+08, name='CI')
 
-#add 13CI
-if 1:
-    species['13CI'] = element(name='13CIj0')
-    species['13CI'].lines['13CI1656.932'] = line(l0=1656.932,f=1.49E-01,g=3.60E+08,name='CI')
-    species['13CI'].lines['13CI1560.292'] = line(l0=1560.292,f= 7.74E-02,g=1.27E+08,name='CI')
-    species['13CI'].lines['13CI1328.826'] = line(l0=1328.826, f=7.58E-02, g=2.88E+08, name='CI')
-    #species['13CI'].lines['13CI1280'] = line(l0=1280.1352, f=2.63E-02, g=1.06E+08, name='CI')
-    species['13CI'].lines['13CI1277.2453'] = line(l0=1277.2453, f=8.53E-02, g=2.32E+08, name='CI')
-    #species['13CI'].lines['13CI1276'] = line(l0=1276.4822, f=5.89E-03, g=8.03E+06, name='CI')
-    species['13CI'].lines['13CI1260.7340'] = line(l0=1260.7340, f=5.07E-02, g=2.40E+08, name='CI')
+        species['13CIj2'] = element(name='CIj2')
+        species['13CIj2'].lines['13CI1657.012'] = line(l0=1657.012, f=1.11E-01, g=3.61E+08, name='CI')
+        species['13CIj2'].lines['13CI1658.125'] = line(l0=1658.125, f=3.71E-02, g=3.60E+08, name='CI')
 
-    species['13CIj1'] = element(name='13CIj1')
-    species['13CIj1'].lines['13CI1656.272'] = line(l0=1656.272,  f=6.21E-02, g=3.61E+08, name='CI')
-    species['13CIj1'].lines['13CI1657.383'] = line(l0= 1657.383, f=3.71E-02, g=3.60E+08, name='CI')
-    species['13CIj1'].lines['13CI1657.916'] = line(l0=1657.916 , f=4.94E-02, g=3.60E+08, name='CI')
-    species['13CIj1'].lines['13CI1560.6644'] = line(l0=1560.6644, f=5.81E-02,g=1.27E+08,name='CI')
-    species['13CIj1'].lines['13CI1560.6920'] = line(l0=1560.6920 , f=1.93E-02,g=1.27E+08,name='CI')
-    species['13CIj1'].lines['13CI1329.116'] = line(l0=1329.116,f=1.91E-02,g=2.88E+08 ,name='CI')
-    species['13CIj1'].lines['13CI1329.093'] = line(l0=1329.093,f=3.13E-02,g=2.87E+08 ,name='CI')
-    species['13CIj1'].lines['13CI1329.079'] = line(l0=1329.079,f=2.54E-02,g=2.89E+08,name='CI')
-    #species['CIj1'].lines['CI1287.6076'] = line(l0=1287.6076,f=6.03E-05,g=1.0E+08,name='CI')
-    #species['CIj1'].lines['CI1287.6076'] = line(l0=1287.6076,f=7.04E-03,g=1.05E+08,name='CI')
-    #species['CIj1'].lines['CI1280.4043'] = line(l0=1280.4043,f=4.40E-03,g=1.06E+08,name='CI')
-    #species['CIj1'].lines['CI1279.8907'] = line(l0=1279.8907 ,f=1.43E-02,g=1.17E+08,name='CI')
-    #species['CIj1'].lines['CI1279.0562'] = line(l0=1279.0562 ,f=7.08E-04,g=1.17E+08,name='CI')
-    species['13CIj1'].lines['13CI1277.5134'] = line(l0=1277.5134 ,f=2.10E-02,g=2.32E+08,name='CI')
-    species['13CIj1'].lines['13CI1277.2828'] = line(l0=1277.2828 ,f=6.66E-02,g=2.46E+08,name='CI')
-    #species['CIj1'].lines['CI1276.7498'] = line(l0=1276.7498 ,f=5.89E-03,g=1.0E+08,name='CI')
-    species['13CIj1'].lines['13CI1260.9254'] = line(l0=1260.9254 ,f=1.75E-02,g=2.41E+08,name='CI')
-    species['13CIj1'].lines['13CI1260.9950'] = line(l0=1260.9950 ,f=1.34E-02,g=2.40E+08,name='CI')
-    species['13CIj1'].lines['13CI1261.1213'] = line(l0=1261.1213, f=2.02E-02, g=2.36E+08, name='CI')
+        species['13CIj2'].lines['13CI1561.424'] = line(l0=1561.424, f=1.16E-02, g=1.27E+08, name='CI')
+        species['13CIj2'].lines['13CI1561.350'] = line(l0=1561.350, f=7.72E-04, g=1.27E+08, name='CI')
+        species['13CIj2'].lines['13CI1561.322 '] = line(l0=1561.322 , f=6.49E-02, g=1.27E+08, name='CI')
+        species['13CIj2'].lines['13CI1329.593'] = line(l0=1329.593 , f=1.89E-02, g=2.88E+08, name='CI')
+        species['13CIj2'].lines['CI1329.571'] = line(l0=1329.571, f=5.69E-02, g=2.87E+08, name='CI')
+        #species['CIj2'].lines['CI1280.8471'] = line(l0=1280.8471, f=5.22E-03, g=1.06E+08, name='CI')
+        #species['CIj2'].lines['CI1280.3331'] = line(l0=1280.3331, f=1.52E-02, g=1.17E+08, name='CI')
+        #species['CIj2'].lines['CI1279.4980'] = line(l0=1279.4980, f=4.56E-04, g=1.0E+08, name='CI')
+        #species['CIj2'].lines['CI1279.2290'] = line(l0=1279.2290, f=2.14E-03, g=1.0E+08, name='CI')
 
-    species['13CIj2'] = element(name='CIj2')
-    species['13CIj2'].lines['13CI1657.012'] = line(l0=1657.012, f=1.11E-01, g=3.61E+08, name='CI')
-    species['13CIj2'].lines['13CI1658.125'] = line(l0=1658.125, f=3.71E-02, g=3.60E+08, name='CI')
+        species['13CIj2'].lines['13CI1277.9542'] = line(l0=1277.9542, f=8.17E-04, g=2.32E+08, name='CI')
+        species['13CIj2'].lines['13CI1277.7234'] = line(l0=1277.7234, f=1.53E-02, g=2.46E+08, name='CI')
+        species['13CIj2'].lines['13CI1277.5500'] = line(l0=1277.5500, f=7.63E-02, g=2.44E+08, name='CI')
+        species['13CIj2'].lines['13CI1277.1906'] = line(l0=1277.1906, f=3.22E-04, g=1.0E+08, name='CI')
 
-    species['13CIj2'].lines['13CI1561.424'] = line(l0=1561.424, f=1.16E-02, g=1.27E+08, name='CI')
-    species['13CIj2'].lines['13CI1561.350'] = line(l0=1561.350, f=7.72E-04, g=1.27E+08, name='CI')
-    species['13CIj2'].lines['13CI1561.322 '] = line(l0=1561.322 , f=6.49E-02, g=1.27E+08, name='CI')
-    species['13CIj2'].lines['13CI1329.593'] = line(l0=1329.593 , f=1.89E-02, g=2.88E+08, name='CI')
-    species['13CIj2'].lines['CI1329.571'] = line(l0=1329.571, f=5.69E-02, g=2.87E+08, name='CI')
-    #species['CIj2'].lines['CI1280.8471'] = line(l0=1280.8471, f=5.22E-03, g=1.06E+08, name='CI')
-    #species['CIj2'].lines['CI1280.3331'] = line(l0=1280.3331, f=1.52E-02, g=1.17E+08, name='CI')
-    #species['CIj2'].lines['CI1279.4980'] = line(l0=1279.4980, f=4.56E-04, g=1.0E+08, name='CI')
-    #species['CIj2'].lines['CI1279.2290'] = line(l0=1279.2290, f=2.14E-03, g=1.0E+08, name='CI')
+        species['13CIj2'].lines['13CI1261.5508'] = line(l0=1261.5508, f=3.91E-02, g=2.36E+08, name='CI')
+        species['13CIj2'].lines['13CI1261.4244'] = line(l0=1261.4244, f= 1.31E-02, g=2.40E+08, name='CI')
 
-    species['13CIj2'].lines['13CI1277.9542'] = line(l0=1277.9542, f=8.17E-04, g=2.32E+08, name='CI')
-    species['13CIj2'].lines['13CI1277.7234'] = line(l0=1277.7234, f=1.53E-02, g=2.46E+08, name='CI')
-    species['13CIj2'].lines['13CI1277.5500'] = line(l0=1277.5500, f=7.63E-02, g=2.44E+08, name='CI')
-    species['13CIj2'].lines['13CI1277.1906'] = line(l0=1277.1906, f=3.22E-04, g=1.0E+08, name='CI')
+    #add blends
+    if 1:
+        species['SiII'] = element(name='SiII')
+        species['SiII'].lines['SiII1304.37'] = line(l0=1304.37020, f=8.63E-02, g=3.40E+08, name='SiII')
+        species['SiII'].lines['SiII1526.70'] = line(l0=1526.707, f=1.33E-01, g=3.80E+08, name='SiII')
 
-    species['13CIj2'].lines['13CI1261.5508'] = line(l0=1261.5508, f=3.91E-02, g=2.36E+08, name='CI')
-    species['13CIj2'].lines['13CI1261.4244'] = line(l0=1261.4244, f= 1.31E-02, g=2.40E+08, name='CI')
-
-#add blends
-if 1:
-    species['SiII'] = element(name='SiII')
-    species['SiII'].lines['SiII1304.37'] = line(l0=1304.37020, f=8.63E-02, g=3.40E+08, name='SiII')
-    species['SiII'].lines['SiII1526.70'] = line(l0=1526.707, f=1.33E-01, g=3.80E+08, name='SiII')
-
-
-
+    with open('./species_database.pkl', 'wb') as f:
+        pickle.dump(species, f)
+else:
+    with open('./species_database.pkl', 'rb') as f:
+        species = pickle.load(f)
 
 def plot_line(N=20,b=10,z=0,sp_line = line(),l=None):
     b *= 1.e5
@@ -1009,96 +1016,168 @@ def plot_line(N=20,b=10,z=0,sp_line = line(),l=None):
 
 
 
-def calc_fit(model,plot_12C=True,plot_13C=True):
+def calc_fit(model,plot_12C=True,plot_13C=True,verbose=False,plot_sys=-1):
 
-    l_min,l_max = np.min(model.x[model.fitting_points])-1,np.max(model.x[model.fitting_points])+1
-    step = model.x[model.fitting_points][0]/model.resolution/8
-    print(model.x[1]-model.x[0],model.x[0]/model.resolution,step)
+    l_min,l_max = np.min(model.fitting_points)-1,np.max(model.fitting_points)+1
+    step = model.fitting_points[0]/model.resolution/8
+    if verbose:
+        print(model.x[1]-model.x[0],model.x[0]/model.resolution,step)
     x = np.arange(l_min,l_max,step)
     f = np.zeros_like(x)
     
     iso = model.fit.iso.val
     for i_sys,s in enumerate(model.fit.sys):
-        print('sys:',i_sys)
-        for sp in s.sp.values():
-            print(sp.name,sp.N.val,sp.b.val,s.z.val)
-            if sp.name in species.keys():
-                for l in species[sp.name].lines.values():
-                    print(sp.name)
-                    print(l.l0,l.f,l.g)
-                    if plot_12C:
-                        f += plot_line(N=sp.N.val,b=sp.b.val,z=s.z.val,sp_line = l,l=x)
+        if plot_sys==-1:
+            if verbose:
+                print('sys:',i_sys)
+            for sp in s.sp.values():
+                if verbose:
+                    print(sp.name,sp.N.val,sp.b.val,s.z.val)
+                if sp.name in species.keys():
+                    for l in species[sp.name].lines.values():
+                        if verbose:
+                            print(sp.name)
+                            print(l.l0,l.f,l.g)
+                        if plot_12C:
+                            f += plot_line(N=sp.N.val,b=sp.b.val,z=s.z.val,sp_line = l,l=x)
 
-                    if 0:
-                        plt.subplots()
-                        plt.plot(f)
-                        plt.plot(plot_line(N=sp.N.val,b=sp.b.val,z=s.z.val,sp_line = l,l=x))
-                        plt.show()
-                if iso is not None and '13' in sp.name:
-                    if 0:
-                        for l in species['13'+sp.name].lines.values():
-                            print('13'+sp.name)
-                            print(l.l0, l.f, l.g)
-                            if plot_13C:
-                                f += plot_line(N=sp.N.val+iso, b=sp.b.val, z=s.z.val, sp_line=l, l=x)
-                    else:
-                        for l in species[sp.name].lines.values():
+                        if 0:
+                            plt.subplots()
+                            plt.plot(f)
+                            plt.plot(plot_line(N=sp.N.val,b=sp.b.val,z=s.z.val,sp_line = l,l=x))
+                            plt.show()
+                    if iso is not None and '13' in sp.name:
+                        if 0:
+                            for l in species['13'+sp.name].lines.values():
+                                if verbose:
+                                    print('13'+sp.name)
+                                    print(l.l0, l.f, l.g)
+                                if plot_13C:
+                                    f += plot_line(N=sp.N.val+iso, b=sp.b.val, z=s.z.val, sp_line=l, l=x)
+                        else:
+                            for l in species[sp.name].lines.values():
+                                if verbose:
+                                    print(sp.name)
+                                    print(l.l0, l.f, l.g)
+                                if plot_13C:
+                                    f += plot_line(N=sp.N.val, b=sp.b.val, z=s.z.val, sp_line=l, l=x)
+        elif i_sys == plot_sys:
+            if verbose:
+                print('sys:', i_sys)
+            for sp in s.sp.values():
+                if verbose:
+                    print(sp.name, sp.N.val, sp.b.val, s.z.val)
+                if sp.name in species.keys():
+                    for l in species[sp.name].lines.values():
+                        if verbose:
                             print(sp.name)
                             print(l.l0, l.f, l.g)
-                            if plot_13C:
-                                f += plot_line(N=sp.N.val, b=sp.b.val, z=s.z.val, sp_line=l, l=x)
+                        if plot_12C:
+                            f += plot_line(N=sp.N.val, b=sp.b.val, z=s.z.val, sp_line=l, l=x)
+
+                        if 0:
+                            plt.subplots()
+                            plt.plot(f)
+                            plt.plot(plot_line(N=sp.N.val, b=sp.b.val, z=s.z.val, sp_line=l, l=x))
+                            plt.show()
+                    if iso is not None and '13' in sp.name:
+                        if 0:
+                            for l in species['13' + sp.name].lines.values():
+                                if verbose:
+                                    print('13' + sp.name)
+                                    print(l.l0, l.f, l.g)
+                                if plot_13C:
+                                    f += plot_line(N=sp.N.val + iso, b=sp.b.val, z=s.z.val, sp_line=l, l=x)
+                        else:
+                            for l in species[sp.name].lines.values():
+                                if verbose:
+                                    print(sp.name)
+                                    print(l.l0, l.f, l.g)
+                                if plot_13C:
+                                    f += plot_line(N=sp.N.val, b=sp.b.val, z=s.z.val, sp_line=l, l=x)
     return x,f
+
+
+def find_fitting_points(x,lst):
+    mask = x<0
+    pix_size = np.median(np.diff(x))
+    for l in lst:
+        #mask_pos = np.where(np.abs(x-l)<pix_size)[0]
+        mask_pos = np.where(x<=l)[0][-1]
+        mask[mask_pos] = True
+
+    return mask
 
 if __name__ == '__main__':
 
+    # set figsize and fontsize
+    fig_size = (12,6)
+    fontsize = 10
+
+
     q_name = 'J0016'
+    #create case for the quasar
     if q_name == 'J0016':
-        espresso_sp = np.loadtxt('/home/slava/science/projects/Isotopic_ratio/J0016_espresso_sp.dat')
-        uves_sp= np.loadtxt('/home/slava/science/projects/Isotopic_ratio/J0016_uves_sp.dat')
-        model = read_model(filename='/home/slava/science/projects/espresso/joint_fit/analysis/J0016/joined_model_combined.spv')
-        #espresso_sp = np.loadtxt('/home/slava/science/research/kulkarni/C_isotopes/joint_fit/analysis/J0016/spec_es.dat')
-        #uves_sp = np.loadtxt('/home/slava/science/research/kulkarni/C_isotopes/joint_fit/analysis/J0016/spec_uves.dat')
-        #model = read_model(filename='/home/slava/science/research/kulkarni/C_isotopes/joint_fit/analysis/J0016/joined_model.spv')
-        print()
+        #set the path to espresso normalized spectrum
+        espresso_sp = np.loadtxt('/home/slava/science/research/kulkarni/C_isotopes/joint_fit/analysis/J0016/spec_es.dat')
+        #set the path to uves normalized spectrum
+        uves_sp = np.loadtxt('/home/slava/science/research/kulkarni/C_isotopes/joint_fit/analysis/J0016/spec_uves.dat')
+        #set the path to model spv file
+        model = read_model(filename='/home/slava/science/research/kulkarni/C_isotopes/joint_fit/analysis/J0016/joined_model.spv')
+        #set the x and y ranges
+        lmin, lmax,deltal = -200,200,50
+        fmin, fmax,deltaf = -0.1, 1.3,0.5
+        #set figname
+        figname = 'J0016'
 
 
+    fig,ax = plt.subplots(3,2,figsize=fig_size)
+    fig.subplots_adjust(wspace=0.15,hspace=0.2)
+
+    #calc fits for CI
     if 1:
-
         uves_fit = {}
-        resolution = 46000  # UVES
+        uves_resolution = 46000  # UVES
         x_13,f_13 = calc_fit(model[0],plot_12C=False)
-        fit_13 = convolve_res2(x_13, np.exp(-f_13), resolution)
+        fit_13 = convolve_res2(x_13, np.exp(-f_13), uves_resolution)
         uves_fit['C13'] = spectrum(x_13,fit_13)
 
         x_12,f_12 = calc_fit(model[0],plot_13C=False)
-        fit_12 = convolve_res2(x_12, np.exp(-f_12), resolution)
+        fit_12 = convolve_res2(x_12, np.exp(-f_12), uves_resolution)
         uves_fit['C12'] = spectrum(x_12,fit_12)
 
         x_tot, f_tot = calc_fit(model[0], plot_13C=True,plot_12C=True)
-        fit_tot = convolve_res2(x_tot, np.exp(-f_tot), resolution)
+        fit_tot = convolve_res2(x_tot, np.exp(-f_tot), uves_resolution)
         uves_fit['Ctot'] = spectrum(x_tot,fit_tot)
 
+        #calc_sys
+        nsys = len(model[0].fit.sys)
+        for i in range(nsys):
+            x,y =  calc_fit(model[0],plot_13C=False,plot_sys=i)
+            y = convolve_res2(x, np.exp(-y), uves_resolution)
+            uves_fit['C12_'+str(i)] = spectrum(x,y)
+
+
         espresso_fit = {}
-        resolution = 140000# ESPRESSO
-        x_13,f_13 = calc_fit(model[0],plot_12C=False)
-        fit_13 = convolve_res2(x_13, np.exp(-f_13), resolution)
+        espresso_resolution = 140000# ESPRESSO
+        x_13,f_13 = calc_fit(model[1],plot_12C=False)
+        fit_13 = convolve_res2(x_13, np.exp(-f_13), espresso_resolution)
         espresso_fit['C13'] = spectrum(x_13,fit_13)
 
-        x_12,f_12 = calc_fit(model[0],plot_13C=False)
-        fit_12 = convolve_res2(x_12, np.exp(-f_12), resolution)
+        x_12,f_12 = calc_fit(model[1],plot_13C=False)
+        fit_12 = convolve_res2(x_12, np.exp(-f_12), espresso_resolution)
         espresso_fit['C12'] = spectrum(x_12,fit_12)
 
-        x_tot, f_tot = calc_fit(model[0], plot_13C=True,plot_12C=True)
-        fit_tot = convolve_res2(x_tot, np.exp(-f_tot), resolution)
+        x_tot, f_tot = calc_fit(model[1], plot_13C=True,plot_12C=True)
+        fit_tot = convolve_res2(x_tot, np.exp(-f_tot), espresso_resolution)
         espresso_fit['Ctot'] = spectrum(x_tot,fit_tot)
 
 
 
-        fig,ax = plt.subplots(3,2)
 
 
-        #plot espresso
-        def plot_panel(axs=ax[0,0],l0=1656,instr='UVES',z_abs=0,x_coord_type='velocity',plot_residuals=False):
+        def plot_panel(axs=ax[0,0],l0=1656,instr='UVES',z_abs=0,x_coord_type='velocity',
+                       plot_residuals=False, plot_components= False,legend=False):
             if x_coord_type=='velocity':
                 def f_x(x):
                     vc = 299792
@@ -1111,19 +1190,36 @@ if __name__ == '__main__':
                 f = uves_fit
                 s = uves_sp
                 m = model[0]
+                fitting_points = find_fitting_points(x=s[:,0],lst=m.fitting_points)
             if instr == 'ESPRESSO':
                 f = espresso_fit
                 s = espresso_sp
                 m = model[1]
-            axs.step(f_x(s[:,0][m.fitting_points]),s[:,1][m.fitting_points],where='mid',color='grey',zorder=-10)
-            axs.step(f_x(s[:,0]),s[:,1],where='mid',color='black')
+                fitting_points = find_fitting_points(x=s[:, 0], lst=m.fitting_points)
 
-            #plt.plot(model.x[model.fitting_points], model.y[model.fitting_points])
-            axs.plot(f_x(f['C12'].x),f['C12'].y)
-            axs.plot(f_x(f['C13'].x),f['C13'].y)
-            axs.plot(f_x(f['Ctot'].x),f['Ctot'].y)
+            axs.step(f_x(s[:,0]),s[:,1],where='mid',color='grey',zorder=-10,lw=0.5)
+            y = np.array(s[:,1])
+            y[~fitting_points] = np.nan
+            axs.errorbar(x=f_x(s[:, 0]), y=y, ls='-', ds='steps-mid', color='black', lw=0.5,zorder=-1)
+            del(y)
 
-            if plot_residuals and 1:
+            #axs.plot(f_x(f['C12'].x),f['C12'].y,color='blue',lw=1)
+            label = '_nolegend_'
+            if legend:
+                label =('C13')
+            axs.plot(f_x(f['C13'].x),f['C13'].y,color='darkorange',lw=1.5,label=label)
+            if legend:
+                label =('Ctot')
+            axs.plot(f_x(f['Ctot'].x),f['Ctot'].y,color='red',lw=1,label=label)
+
+            if plot_components:
+                label = '_nolegend_'
+                for i in range(len(m.fit.sys)):
+                    if legend and i == len(m.fit.sys)-1:
+                        label = ('components')
+                    axs.plot(f_x(f['C12_'+str(i)].x), f['C12_'+str(i)].y, color='blue', lw=0.5,label=label)
+
+            if plot_residuals and 0:
                 fit_interp = interp1d(f_x(f['Ctot'].x), f['Ctot'].y,fill_value='extrapolate')
                 spec_interp = interp1d(f_x(s[:,0]), s[:,1],fill_value='extrapolate')
                 err_interp = interp1d(f_x(s[:,0]), s[:,2],fill_value='extrapolate')
@@ -1136,23 +1232,20 @@ if __name__ == '__main__':
                 axs.plot(x_residuals,2+y_residuals*0.1,'.',color='black')
                 axs.axhline(2.1,color='black',lw=1)
                 axs.axhline(1.9,color='black',lw=1)
-                axs.set_ylim(-0.1, 2.3)
-            else:
-                axs.set_ylim(-0.1, 1.3)
-
-
-
+                fmin,fmax = -0.1, 2.3
 
 
         z_abs = model[0].fit.sys[0].z.val
         plot_panel(axs=ax[0, 0], l0=species['CI'].lines['CI1656'].l0, instr='UVES', z_abs=z_abs,
-                   x_coord_type='velocity')
+                   x_coord_type='velocity', plot_components= True,legend=True)
         plot_panel(axs=ax[1, 0], l0=species['CI'].lines['CI1560'].l0, instr='UVES', z_abs=z_abs,
-                   x_coord_type='velocity')
+                   x_coord_type='velocity', plot_components= True,legend=True)
         plot_panel(axs=ax[2, 0], l0=species['CI'].lines['CI1328'].l0, instr='UVES', z_abs=z_abs,
-                   x_coord_type='velocity')
+                   x_coord_type='velocity', plot_components= True,legend=True)
         #plot_panel(axs=ax[3, 0], l0=species['CI'].lines['CI1277'].l0, instr='UVES', z_abs=z_abs,
         #           x_coord_type='velocity')
+
+
 
         z_abs = model[0].fit.sys[0].z.val
         plot_panel(axs=ax[0, 1], l0=species['CI'].lines['CI1656'].l0, instr='ESPRESSO', z_abs=z_abs,
@@ -1164,9 +1257,32 @@ if __name__ == '__main__':
         #plot_panel(axs=ax[3, 1], l0=species['CI'].lines['CI1277'].l0, instr='ESPRESSO', z_abs=z_abs,
         #           x_coord_type='velocity')
 
-        for axs in ax[:,0]:
-            axs.set_xlim(-800,200)
-        for axs in ax[:, 1]:
-            axs.set_xlim(-800, 200)
+        for i in range(2):
+            for axs in ax[:,i]:
+                axs.axhline(0,ls=':',lw=1)
+                axs.set_xlabel('v, km/s',fontsize=fontsize)
+                axs.set_ylabel('Flux',fontsize=fontsize)
+                axs.set_xlim(lmin, lmax)
+                axs.set_ylim(fmin, fmax)
+                axs.xaxis.set_minor_locator(AutoMinorLocator(5))
+                axs.xaxis.set_major_locator(MultipleLocator(deltal))
+                axs.yaxis.set_minor_locator(AutoMinorLocator(5))
+                axs.yaxis.set_major_locator(MultipleLocator(deltaf))
+                axs.tick_params(which='both', width=1, direction='in', labelsize=fontsize, right='True',
+                                top='True')
+                axs.tick_params(which='major', length=5)
+                axs.tick_params(which='minor', length=3)
+
+        labels = ['CI 1656','CI 1560','CI 1328']
+        for i in range(3):
+            xl,xu = axs.get_xlim()
+            yl,yu = axs.get_ylim()
+            ax[i,0].text(xl+0.05*(xu-xl),yl+0.1*(yu-yl),labels[i],fontsize=fontsize)
+            ax[i, 0].legend(loc='lower right',fontsize=fontsize-2)
+
+        ax[0,0].set_title('UVES')
+        ax[0,1].set_title('ESPRESSO')
+
+        fig.savefig(figname+'.pdf', bbox_inches='tight')
 
         plt.show()
